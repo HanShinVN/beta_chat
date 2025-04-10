@@ -114,3 +114,64 @@ async function getResponseFromLLMStudio(message) {
     msg.innerHTML = '⚠️ Lỗi kết nối tới máy chủ.';
   }
 }
+
+
+
+
+const dropZone = document.getElementById('drop-zone');
+
+dropZone.addEventListener('dragover', (e) => {
+  e.preventDefault();
+  dropZone.classList.add('active');
+});
+
+dropZone.addEventListener('dragleave', () => {
+  dropZone.classList.remove('active');
+});
+
+dropZone.addEventListener('drop', async (e) => {
+  e.preventDefault();
+  dropZone.classList.remove('active');
+
+  const file = e.dataTransfer.files[0];
+  if (!file) return;
+
+  appendMessage('user', `📄 Bạn đã gửi file: ${file.name}`);
+
+  const formData = new FormData();
+  formData.append('file', file);
+
+  try {
+    const response = await fetch(`${NGROK_DOMAIN}/upload/`, {
+      method: 'POST',
+      body: formData
+    });
+
+    const data = await response.json();
+    const aiMessage = data.result || "⚠️ AI không xử lý được file.";
+    appendMessage('bot', aiMessage);
+
+  } catch (err) {
+    appendMessage('bot', '⚠️ Lỗi khi gửi file đến server.');
+  }
+});
+
+
+
+// === Kích hoạt vùng drop khi kéo file vào bất kỳ đâu trên trang ===
+window.addEventListener('dragenter', (e) => {
+  if (e.dataTransfer && e.dataTransfer.types.includes('Files')) {
+    dropZone.classList.add('show');
+  }
+});
+
+window.addEventListener('dragleave', (e) => {
+  // Chỉ ẩn nếu rời ra khỏi toàn bộ cửa sổ
+  if (e.clientX === 0 && e.clientY === 0) {
+    dropZone.classList.remove('show');
+  }
+});
+
+window.addEventListener('drop', () => {
+  dropZone.classList.remove('show');
+});
