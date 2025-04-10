@@ -1,42 +1,71 @@
 const NGROK_DOMAIN = "https://moral-grackle-vertically.ngrok-free.app";  // <= CẬP NHẬT link của bạn tại đây
+const API_CHAT = `${NGROK_DOMAIN}/chat/`;
+const API_UPLOAD_MULTI = `${NGROK_DOMAIN}/upload-multi/`;
 
 const chatBox = document.getElementById('chat-box');
 const userInput = document.getElementById('user-input');
 const sendButton = document.getElementById('send-button');
 const toggleCheckbox = document.getElementById('mode-toggle-checkbox');
+const dropZone = document.getElementById('drop-zone');
 const logo = document.getElementById('logo');
 
 let conversationHistory = [];
+let uploadedFiles = [];  // lưu file tạm thời
 
+// === Giao diện khởi tạo ===
 window.addEventListener('DOMContentLoaded', () => {
   const saved = localStorage.getItem('conversationHistory');
   if (saved) {
     conversationHistory = JSON.parse(saved);
-    conversationHistory.forEach(item => appendMessage(item.role, item.content));
+    chatBox.innerHTML = ''; // clear trước khi load
+    conversationHistory.forEach(item => {
+      appendMessage(item.role, item.content);
+    });
   }
-
-  logo.src = document.body.classList.contains('dark-mode') ? 'data/normal.png' : 'data/normal.png';
 });
 
+// === Giao diện dark/light mode ===
 toggleCheckbox.addEventListener("change", () => {
   document.body.classList.toggle("dark-mode");
   logo.src = document.body.classList.contains("dark-mode") ? "data/normal.png" : "data/normal.png";
 });
 
+// === Gửi tin nhắn ===
 sendButton.addEventListener('click', sendMessage);
 userInput.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') sendMessage();
 });
 
-function sendMessage() {
+async function sendMessage() {
   const message = userInput.value.trim();
   if (!message) return;
 
   appendMessage('user', message);
-  conversationHistory.push({ role: 'user', content: message });
-  localStorage.setItem('conversationHistory', JSON.stringify(conversationHistory));
   userInput.value = '';
 
+  // === Nếu người dùng vừa kéo file và có yêu cầu ===
+  if (uploadedFiles.length > 0) {
+    const formData = new FormData();
+    formData.append('prompt', message);
+    uploadedFiles.forEach(file => formData.append('files', file));
+
+    try {
+      const response = await fetch(API_UPLOAD_MULTI, {
+        method: 'POST',
+        body: formData
+      });
+      const data = await response.json();
+      const reply = data.result || "⚠️ AI không phản hồi.";
+      appendMessage('bot', reply);
+    } catch (err) {
+      appendMessage('bot', '⚠️ Lỗi khi gửi file đến server.');
+    }
+
+    uploadedFiles = []; // reset lại
+    return;
+  }
+
+  // === Nếu không có file, gửi tin nhắn bình thường ===
   getResponseFromLLMStudio(message);
 }
 
@@ -75,11 +104,8 @@ function formatText(text) {
     .replace(/\n/g, '<br>');
 }
 
-const API_URL = "https://moral-grackle-vertically.ngrok-free.app/chat/";  // thay bằng ngrok của bạn
-
+// === Gọi API /chat/ khi không có file ===
 async function getResponseFromLLMStudio(message) {
-  chatBox.querySelectorAll('.bot').forEach(e => e.parentElement.remove());
-
   const wrapper = document.createElement('div');
   wrapper.classList.add('message-wrapper');
 
@@ -97,7 +123,7 @@ async function getResponseFromLLMStudio(message) {
   chatBox.scrollTop = chatBox.scrollHeight;
 
   try {
-    const response = await fetch(API_URL, {
+    const response = await fetch(API_CHAT, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ prompt: message })
@@ -115,11 +141,7 @@ async function getResponseFromLLMStudio(message) {
   }
 }
 
-
-
-
-const dropZone = document.getElementById('drop-zone');
-
+// === Xử lý kéo thả file ===
 dropZone.addEventListener('dragover', (e) => {
   e.preventDefault();
   dropZone.classList.add('active');
@@ -129,36 +151,18 @@ dropZone.addEventListener('dragleave', () => {
   dropZone.classList.remove('active');
 });
 
-dropZone.addEventListener('drop', async (e) => {
+dropZone.addEventListener('drop', (e) => {
   e.preventDefault();
-  dropZone.classList.remove('active');
+  dropZone.classList.remove('active', 'show');
 
-  const file = e.dataTransfer.files[0];
-  if (!file) return;
+  const files = Array.from(e.dataTransfer.files);
+  if (files.length === 0) return;
 
-  appendMessage('user', `📄 Bạn đã gửi file: ${file.name}`);
-
-  const formData = new FormData();
-  formData.append('file', file);
-
-  try {
-    const response = await fetch(`${NGROK_DOMAIN}/upload/`, {
-      method: 'POST',
-      body: formData
-    });
-
-    const data = await response.json();
-    const aiMessage = data.result || "⚠️ AI không xử lý được file.";
-    appendMessage('bot', aiMessage);
-
-  } catch (err) {
-    appendMessage('bot', '⚠️ Lỗi khi gửi file đến server.');
-  }
+  uploadedFiles = files;
+  appendMessage('user', `📁 Đã thêm ${files.length} file. Vui lòng nhập yêu cầu xử lý và gửi.`);
 });
 
-
-
-// === Kích hoạt vùng drop khi kéo file vào bất kỳ đâu trên trang ===
+// === Hiện drop zone khi kéo file vào ===
 window.addEventListener('dragenter', (e) => {
   if (e.dataTransfer && e.dataTransfer.types.includes('Files')) {
     dropZone.classList.add('show');
@@ -166,7 +170,6 @@ window.addEventListener('dragenter', (e) => {
 });
 
 window.addEventListener('dragleave', (e) => {
-  // Chỉ ẩn nếu rời ra khỏi toàn bộ cửa sổ
   if (e.clientX === 0 && e.clientY === 0) {
     dropZone.classList.remove('show');
   }
