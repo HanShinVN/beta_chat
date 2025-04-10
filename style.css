@@ -378,3 +378,34 @@ button:hover {
   margin-bottom: 8px;
   line-height: 1.6;
 }
+
+
+
+.drop-zone {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 9999;
+  background-color: rgba(255, 255, 255, 0.96);
+  color: #007aff;
+  font-size: 26px;
+  font-weight: bold;
+  text-align: center;
+  padding-top: 20%;
+  border: 4px dashed #007aff;
+  box-sizing: border-box;
+  transition: all 0.3s ease;
+}
+
+.drop-zone.show {
+  display: block;
+}
+
+.drop-zone.active {
+  background-color: rgba(230, 240, 255, 0.96);
+  border-color: #0056d2;
+  color: #0056d2;
+}
